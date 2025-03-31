@@ -335,9 +335,17 @@ You have been provided with these additional arguments, that you can access usin
     ) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
         self.step_number = 1
+        replan=False
         while final_answer is None and self.step_number <= max_steps:
             step_start_time = time.time()
-            if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+            # Check if previous step exists and has an error attribute before accessing it
+            previous_step = self.memory.steps[-1] if self.memory.steps else None
+            previous_step_error = getattr(previous_step, 'error', None) if previous_step else None
+            
+            if (self.planning_interval is not None 
+                and (self.step_number % self.planning_interval == 1 
+                     or previous_step_error 
+                     or replan)):
                 planning_step = self._create_planning_step(
                     task, is_first_step=(self.step_number == 1), step=self.step_number
                 )
@@ -346,6 +354,16 @@ You have been provided with these additional arguments, that you can access usin
             action_step = self._create_action_step(step_start_time, images)
             try:
                 final_answer = self._execute_step(task, action_step)
+                # check if observation deviates from the plan
+                if self._validate_observation(action_step.observations, action_step.model_output):
+                    # Force a planning step on the next iteration
+                    replan=True
+                    self.logger.log(
+                        "Significant deviation detected from plan. Triggering replanning on next step.",
+                        level=LogLevel.INFO
+                    )
+                else:
+                    replan=False
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
@@ -361,6 +379,55 @@ You have been provided with these additional arguments, that you can access usin
             final_answer = self._handle_max_steps_reached(task, images, step_start_time)
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
+    
+    def _validate_observation(self, observations: str, current_plan: str) -> bool:
+        """
+        Validates if the current observation aligns with the expected plan.
+        
+        Args:
+            observations (str): The observations from the current step
+            current_plan (str): The current plan/model output
+            
+        Returns:
+            bool: True if observation aligns with plan, False if deviation detected
+        """
+        validation_prompt = {
+            "role": MessageRole.USER,
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"""Compare the following observation with the current plan and determine if there is a significant deviation that requires replanning.
+
+Current plan:
+{current_plan}
+
+Observation:
+{observations}
+
+Respond with either 'DEVIATION' if the observation significantly deviates from the plan and requires replanning, or 'ON_TRACK' if the observation aligns with expectations. Only respond with one of these two words."""
+                }
+            ]
+        }
+
+        try:
+            validation_response = self.model([validation_prompt])
+            response_text = validation_response.content.strip().upper()
+            
+            # Log the validation check
+            self.logger.log(
+                f"Plan validation check: {response_text}",
+                level=LogLevel.DEBUG
+            )
+            
+            return response_text == "DEVIATION"
+            
+        except Exception as e:
+            # If validation fails, log warning and continue without replanning
+            self.logger.log(
+                f"Plan validation check failed: {str(e)}. Continuing without replanning.",
+                level=LogLevel.WARNING
+            )
+            return False
 
     def _create_action_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)

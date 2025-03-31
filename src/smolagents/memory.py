@@ -116,9 +116,16 @@ class ActionStep(MemoryStep):
             )
         if self.error is not None:
             error_message = (
-                "Error:\n"
-                + str(self.error)
-                + "\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
+                "Tool Call Failed:\n"
+                f"Tool Name: {self.tool_calls[0].name if self.tool_calls else 'N/A'}\n"
+                f"Arguments/Code: {str(self.tool_calls[0].arguments) if self.tool_calls else 'N/A'}\n"
+                f"Error: {str(self.error)}\n\n"
+                "Now, in your Thought, please analyze this error and propose a different approach or tool to achieve "
+                "the intended goal. Do not simply repeat the failed action. Consider:\n"
+                "1. What specifically caused this error?\n"
+                "2. What alternative approaches or tools could work better?\n"
+                "3. How can you modify your strategy to avoid similar errors?\n"
+                "Use code with caution."
             )
             message_content = f"Call id: {self.tool_calls[0].id}\n" if self.tool_calls else ""
             message_content += error_message

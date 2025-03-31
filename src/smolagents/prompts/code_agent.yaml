@@ -3,7 +3,11 @@ system_prompt: |-
   To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
   To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.
 
-  At each step, in the 'Thought:' sequence, you should first explain your reasoning towards solving the task and the tools that you want to use.
+  At each step, in the 'Thought:' sequence, you must:
+  1. State which numbered step of your current plan you are executing
+  2. If this isn't the first step, briefly evaluate whether the previous observation achieved that step's goal
+  3. Explain your reasoning for the current action and the tools you plan to use
+  
   Then in the 'Code:' sequence, you should write the code in simple Python. The code sequence must end with '<end_code>' sequence.
   During each intermediate step, you can use 'print()' to save whatever important information you will then need.
   These print outputs will then appear in the 'Observation:' field, which will be available as input for the next step.
@@ -13,7 +17,7 @@ system_prompt: |-
   ---
   Task: "Generate an image of the oldest person in this document."
 
-  Thought: I will proceed step by step and use the following tools: `document_qa` to find the oldest person in the document, then `image_generator` to generate an image according to the answer.
+  Thought: Executing Plan Step 1: Find the oldest person in the document using document_qa
   Code:
   ```py
   answer = document_qa(document=document, question="Who is the oldest person mentioned?")
@@ -21,7 +25,9 @@ system_prompt: |-
   ```<end_code>
   Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
 
-  Thought: I will now generate an image showcasing the oldest person.
+  Thought: Executing Plan Step 2: Generate image of the identified person
+  Previous step succeeded in identifying the oldest person as John Doe, age 55.
+  I will now generate an image showcasing this person.
   Code:
   ```py
   image = image_generator("A portrait of John Doe, a 55-year-old man living in Canada.")
@@ -199,9 +205,17 @@ planning:
     Do not add anything else.
 
     ## Plan
-    Then for the given task, develop a step-by-step high-level plan taking into account the above inputs and list of facts.
-    This plan should involve individual tasks based on the available tools, that if executed correctly will yield the correct answer.
-    Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
+    Your plan must be a numbered list of concrete steps. Each step should have:
+    1. A clear goal that can be evaluated as succeeded/failed
+    2. The key information or result needed from this step
+    3. How this feeds into subsequent steps
+    
+    Format your plan like this:
+    1. [Goal] Do X
+       Success criteria: Y
+       Output needed: Z
+    2. [Goal] ...
+    
     After writing the final step of the plan, write the '\n<end_plan>' tag and stop there.
 
     Here is your task:
@@ -293,17 +307,37 @@ managed_agent:
       Task:
       {{task}}
       ---
-      You're helping your manager solve a wider task: so make sure to not provide a one-line answer, but give as much information as possible to give them a clear understanding of the answer.
+      You're helping your manager solve a wider task: so make sure to provide detailed, structured information to give them a clear understanding of your work.
 
-      Your final_answer WILL HAVE to contain these parts:
-      ### 1. Task outcome (short version):
-      ### 2. Task outcome (extremely detailed version):
-      ### 3. Additional context (if relevant):
+      Your final_answer MUST be a dictionary containing these keys:
+      - answer: The direct response to the task (required)
+      - key_findings: List of important discoveries or insights gained while solving the task (required)
+      - challenges: List of difficulties encountered or limitations identified (required)
+      - next_step_suggestion: Recommendation for what the manager should do next (required)
+      - context: Any additional relevant information (optional)
 
-      Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
-      And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
+      Example structure:
+      final_answer({
+          'answer': 'The calculated value is 42',
+          'key_findings': [
+              'Initial approach using method X was inefficient',
+              'Method Y provided better accuracy'
+          ],
+          'challenges': [
+              'Data format required preprocessing',
+              'Rate limits affected API calls'
+          ],
+          'next_step_suggestion': 'Consider validating results with method Z',
+          'context': 'Additional details about the calculation process...'
+      })
+
+      Make sure to include all required fields in your final_answer. Everything that you do not pass as an argument to final_answer will be lost.
+      Even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
+
   report: |-
-      Here is the final answer from your managed agent '{{name}}':
+      Here is the structured response from your managed agent '{{name}}':
+      
+      ### Answer:
       {{final_answer}}
 final_answer:
   pre_messages: |-
