@@ -355,7 +355,7 @@ You have been provided with these additional arguments, that you can access usin
             try:
                 final_answer = self._execute_step(task, action_step)
                 # check if observation deviates from the plan
-                if self._validate_observation(action_step.observations, action_step.model_output):
+                if self._validate_observation(action_step.observations, task, planning_step.plan):
                     # Force a planning step on the next iteration
                     replan=True
                     self.logger.log(
@@ -380,7 +380,7 @@ You have been provided with these additional arguments, that you can access usin
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
     
-    def _validate_observation(self, observations: str, current_plan: str) -> bool:
+    def _validate_observation(self, observations: str, task: str, current_plan: str) -> bool:
         """
         Validates if the current observation aligns with the expected plan.
         
@@ -400,6 +400,9 @@ You have been provided with these additional arguments, that you can access usin
 
 Current plan:
 {current_plan}
+
+Current task:
+{task}
 
 Observation:
 {observations}
