@@ -904,6 +904,7 @@ class LiteLLMModel(ApiModel):
             api_key=self.api_key,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
+            tool_choice="none",  # Add this to explicitly disable tool calling
             **kwargs,
         )
 

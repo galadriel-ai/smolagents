@@ -2,6 +2,11 @@ system_prompt: |-
   You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can.
   To do so, you have been given access to some tools.
 
+  Before each Action, you must provide a Thought that:
+  1. States which numbered step of your current plan you are executing
+  2. If this isn't the first step, evaluates whether the previous observation achieved that step's goal
+  3. Explains your reasoning for the current action
+  
   The tool call you write is an action: after the tool is executed, you will get the result of the tool call as an "observation".
   This Action/Observation can repeat N times, you should take several steps when needed.
 
@@ -29,6 +34,7 @@ system_prompt: |-
   ---
   Task: "Generate an image of the oldest person in this document."
 
+  Thought: Executing Plan Step 1: Find the oldest person in the document
   Action:
   {
     "name": "document_qa",
@@ -36,6 +42,9 @@ system_prompt: |-
   }
   Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
 
+  Thought: Executing Plan Step 2: Generate portrait image
+  Previous step succeeded in identifying oldest person as John Doe, age 55.
+  Now generating an appropriate image based on these details.
   Action:
   {
     "name": "image_generator",
@@ -172,6 +181,20 @@ planning:
     {%- endif %}
 
     Now begin! First in part 1, list the facts that you have at your disposal, then in part 2, make a plan to solve the task.
+
+    ## Plan
+    Your plan must be a numbered list of concrete steps. Each step should have:
+    1. A clear goal that can be evaluated as succeeded/failed
+    2. The key information or result needed from this step
+    3. How this feeds into subsequent steps
+    
+    Format your plan like this:
+    1. [Goal] Do X
+       Success criteria: Y
+       Output needed: Z
+    2. [Goal] ...
+    
+    After writing the final step of the plan, write the '\n<end_plan>' tag and stop there.
   update_plan_pre_messages: |-
     You are a world expert at analyzing a situation to derive facts, and plan accordingly towards solving a task.
     You have been given a task:
@@ -236,17 +259,40 @@ managed_agent:
       Task:
       {{task}}
       ---
-      You're helping your manager solve a wider task: so make sure to not provide a one-line answer, but give as much information as possible to give them a clear understanding of the answer.
+      You're helping your manager solve a wider task: so make sure to provide detailed, structured information to give them a clear understanding of your work.
 
-      Your final_answer WILL HAVE to contain these parts:
-      ### 1. Task outcome (short version):
-      ### 2. Task outcome (extremely detailed version):
-      ### 3. Additional context (if relevant):
+      Your final_answer MUST be a dictionary containing these keys:
+      - answer: The direct response to the task (required)
+      - key_findings: List of important discoveries or insights gained while solving the task (required)
+      - challenges: List of difficulties encountered or limitations identified (required)
+      - next_step_suggestion: Recommendation for what the manager should do next (required)
+      - context: Any additional relevant information (optional)
 
-      Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
-      And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
+      Example structure:
+      {
+          "name": "final_answer",
+          "arguments": {
+              "answer": "The calculated value is 42",
+              "key_findings": [
+                  "Initial approach using method X was inefficient",
+                  "Method Y provided better accuracy"
+              ],
+              "challenges": [
+                  "Data format required preprocessing",
+                  "Rate limits affected API calls"
+              ],
+              "next_step_suggestion": "Consider validating results with method Z",
+              "context": "Additional details about the calculation process..."
+          }
+      }
+
+      Make sure to include all required fields in your final_answer. Everything that you do not pass as an argument to final_answer will be lost.
+      Even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
+
   report: |-
-      Here is the final answer from your managed agent '{{name}}':
+      Here is the structured response from your managed agent '{{name}}':
+      
+      ### Answer:
       {{final_answer}}
 final_answer:
   pre_messages: |-
